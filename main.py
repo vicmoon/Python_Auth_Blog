@@ -3,7 +3,7 @@ from flask import Flask, abort, request, render_template, redirect, url_for, fla
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
 from flask_gravatar import Gravatar
-from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
+from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user, login_required
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer, String, Text
@@ -113,7 +113,14 @@ def login():
 
         user = User.query.filter_by(email=email).first()
 
-        if user and check_password_hash(user.password, password):
+        if not user:
+            flash("That email does not exist, please try again.")
+            return redirect(url_for('login'))
+
+        elif not check_password_hash(user.password, password):
+            flash('Password incorrect, please try again.')
+            return redirect(url_for('login'))
+        else:
             login_user(user)
             
         flash("Invalid credentials, try again. ", "warning")
@@ -184,7 +191,9 @@ def edit_post(post_id):
 
 
 # TODO: Use a decorator so only an admin user can delete a post
+
 @app.route("/delete/<int:post_id>")
+@login_required
 def delete_post(post_id):
     post_to_delete = db.get_or_404(BlogPost, post_id)
     db.session.delete(post_to_delete)
