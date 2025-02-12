@@ -95,7 +95,6 @@ def register():
         login_user(new_user)
 
         session['name'] = name  # Store name in session
-        flash("Registration successful!", "success")
         return render_template("index.html", name=name)  # Redirect instead of rendering `index.html` directly
 
     return render_template("register.html", form=form)
