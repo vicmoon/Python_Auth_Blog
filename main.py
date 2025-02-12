@@ -11,12 +11,13 @@ from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 # Import your forms from the forms.py
 from forms import CreatePostForm, LoginForm, RegisterForm
+from dotenv import load_dotenv
+import os
 
 
-
-
+load_dotenv()
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6bS'
 ckeditor = CKEditor(app)
 login_manager = LoginManager()
 Bootstrap5(app)
@@ -33,27 +34,43 @@ login_manager.init_app(app)
 db.init_app(app)
 
 
+
+#Create User 
+
+class User(db.Model, UserMixin):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(100), unique=True)
+    password: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(1000))
+
+    posts = relationship("BlogPost", back_populates="author" )
+
+
 # CONFIGURE TABLES
 class BlogPost(db.Model):
-    __tablename__ = "blog_posts"
+    __tablename__ = "posts"
+
+     # Create Foreign Key, "users.id" the users refers to the tablename of User.
+
+    author_id: Mapped[int] = mapped_column(Integer, db.ForeignKey("users.id"))
+
+    # Create reference to the User object. The "posts" refers to the posts property in the User class.
+
+    author = relationship("User", back_populates="posts")
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(250), unique=True, nullable=False)
     subtitle: Mapped[str] = mapped_column(String(250), nullable=False)
     date: Mapped[str] = mapped_column(String(250), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    author: Mapped[str] = mapped_column(String(250), nullable=False)
+    
     img_url: Mapped[str] = mapped_column(String(250), nullable=False)
 
 
 
-# TODO: Create a User table for all your registered users. 
-#Create User 
 
-class User(db.Model, UserMixin):
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(100), unique=True)
-    password: Mapped[str] = mapped_column(String(100))
-    name: Mapped[str] = mapped_column(String(1000))
 
 # create a user loader callback 
 @login_manager.user_loader
@@ -64,7 +81,7 @@ def load_user(id):
 def admin_only(f):
     @wraps(f)  # ✅ Preserves function metadata
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.id != 3:
+        if not current_user.is_authenticated or current_user.id != 1:
             abort(403)  # ❌ Access denied
         return f(*args, **kwargs)  # ✅ Allow access
     return decorated
@@ -141,6 +158,7 @@ def login():
 
 
 @app.route('/logout')
+
 def logout():
     logout_user()
     return redirect(url_for('get_all_posts'))
@@ -148,8 +166,8 @@ def logout():
 
 @app.route('/')
 def get_all_posts():
-    result = db.session.execute(db.select(BlogPost))
-    posts = result.scalars().all()
+
+    posts = BlogPost.query.all()
     return render_template("index.html", all_posts=posts)
 
 
@@ -171,7 +189,7 @@ def add_new_post():
             subtitle=form.subtitle.data,
             body=form.body.data,
             img_url=form.img_url.data,
-            author=current_user,
+            author_id=current_user.id,
             date=date.today().strftime("%B %d, %Y")
         )
         db.session.add(new_post)
@@ -186,17 +204,17 @@ def add_new_post():
 def edit_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
     edit_form = CreatePostForm(
-        title=post.title,
-        subtitle=post.subtitle,
-        img_url=post.img_url,
-        author=post.author,
-        body=post.body
-    )
+    title=post.title,
+    subtitle=post.subtitle,
+    img_url=post.img_url,
+    author_id=post.author_id,  # ✅ CORRECT (author_id is an integer)
+    body=post.body
+)
     if edit_form.validate_on_submit():
         post.title = edit_form.title.data
         post.subtitle = edit_form.subtitle.data
         post.img_url = edit_form.img_url.data
-        post.author = current_user
+        post.author_id = current_user.id
         post.body = edit_form.body.data
         db.session.commit()
         return redirect(url_for("show_post", post_id=post.id))
